@@ -1,0 +1,6 @@
+{
+  "name": "NetConfig Analyzer with CLI helper",
+  "description": "An AI-powered web application to parse network device configurations, identify key information, and detect potential conflicts across multiple devices from various vendors like Cisco, Huawei, and Juniper.",
+  "requestFramePermissions": [],
+  "prompt": ""
+}

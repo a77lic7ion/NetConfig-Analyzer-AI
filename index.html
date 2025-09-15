@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NetConfig Analyzer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'brand-primary': '#F97316', // Orange 500
+            'brand-secondary': '#FB923C', // Orange 400
+            'brand-accent': '#EF4444', // Red 500
+            'dark-background': '#000000', // Black
+            'medium-background': '#111827', // Gray 900
+            'light-background': '#1F2937', // Gray 800
+            'dark-text': '#F9FAFB', // Gray 50
+            'medium-text': '#D1D5DB', // Gray 300
+            'light-text': '#9CA3AF', // Gray 400
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Inlined Google Font to prevent CORS issues with html-to-image library during PDF export */
+    @font-face {
+      font-family: 'Inter';
+      font-style: normal;
+      font-weight: 300 700; /* Variable font weight range */
+      font-display: swap;
+      src: url(https://fonts.gstatic.com/s/inter/v13/UcC73FwrK3iLTeHuS_fvQtMwCp50KnMa2ZL7W0Q.woff2) format('woff2');
+      /* Limiting to latin characters which is sufficient for this app */
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #000000; /* Black */
+      color: #F9FAFB; /* Gray 50 */
+    }
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #111827; /* Gray 900 */
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #374151; /* Gray 700 */
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #4B5563; /* Gray 600 */
+    }
+  </style>
+   <!-- Google Fonts are now inlined in the <style> tag above to fix CORS errors. -->
+   <script src="https://cdn.jsdelivr.net/npm/ipaddr.js@1.9.1/ipaddr.min.js"></script>
+   <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
+   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.1.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.6.0",
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "recharts": "https://esm.sh/recharts@^3.0.0"
+  }
+}
+</script>
+</head>
+<body class="bg-dark-background">
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
