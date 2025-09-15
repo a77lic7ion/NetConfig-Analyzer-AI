@@ -57,6 +57,7 @@ const ScriptWriter: React.FC<ScriptWriterProps> = ({
   result,
 }) => {
   const [isCopied, setIsCopied] = useState(false);
+  const [isSaveCommandCopied, setIsSaveCommandCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<'form' | 'manual'>('form');
 
   // Form State
@@ -76,10 +77,47 @@ const ScriptWriter: React.FC<ScriptWriterProps> = ({
     if (result?.script) {
       navigator.clipboard.writeText(result.script).then(() => {
         setIsCopied(true);
-        setTimeout(() => setIsCopied(false), 2000); // Revert after 2 seconds
+        setTimeout(() => setIsCopied(false), 2000);
       });
     }
   };
+
+  const handleSaveScript = () => {
+    if (!result?.script) return;
+    const blob = new Blob([result.script], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const scriptHostname = hostname || 'config';
+    const vendorExtension = vendor === VendorName.JUNIPER ? 'conf' : 'cfg';
+    link.download = `${scriptHostname}_${new Date().toISOString().split('T')[0]}.${vendorExtension}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const getSaveCommand = (vendor: VendorName): string => {
+      switch (vendor) {
+          case VendorName.CISCO:
+              return 'write memory';
+          case VendorName.JUNIPER:
+              return 'commit';
+          case VendorName.HUAWEI:
+          case VendorName.H3C:
+              return 'save';
+          default:
+              return 'copy running-config startup-config';
+      }
+  }
+
+  const handleCopySaveCommand = () => {
+      const command = getSaveCommand(vendor);
+      navigator.clipboard.writeText(command).then(() => {
+          setIsSaveCommandCopied(true);
+          setTimeout(() => setIsSaveCommandCopied(false), 2000);
+      });
+  }
 
   const updateListItem = <T,>(list: T[], setList: React.Dispatch<React.SetStateAction<T[]>>, key: string, field: keyof T, value: any) => {
     setList(list.map(item => (item as any).key === key ? { ...item, [field]: value } : item));
@@ -247,7 +285,7 @@ const ScriptWriter: React.FC<ScriptWriterProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label htmlFor={`${formId}-dns`} className="block text-sm font-medium text-light-text mb-1">DNS Servers</label>
-                    <input id={`${formId}-dns`} type="text" value={dnsServers} onChange={e => setDnsServers(e.target.value)} placeholder="e.g., 8.8.8.8, 1.1.1.1" className="w-full bg-light-background border border-medium-background/50 text-dark-text rounded-lg p-2 focus:ring-brand-primary focus:border-brand-primary" />
+                    <input id={`${formId}-dns`} type="text" value={dnsServers} onChange={e => setDnsServers(e.target.value)} placeholder="e.g., 8.8.8.8" className="w-full bg-light-background border border-medium-background/50 text-dark-text rounded-lg p-2 focus:ring-brand-primary focus:border-brand-primary" />
                 </div>
                  <div>
                     <label htmlFor={`${formId}-ntp`} className="block text-sm font-medium text-light-text mb-1">NTP Servers</label>
@@ -319,29 +357,52 @@ const ScriptWriter: React.FC<ScriptWriterProps> = ({
       
       {result && (
         <div className="mt-4 p-4 bg-light-background/50 rounded-lg border border-medium-background/50">
-            <div className="flex justify-between items-center mb-2">
+            <div className="flex flex-wrap gap-2 justify-between items-center mb-2">
               <h4 className="font-semibold text-dark-text">Generated Script:</h4>
-              <button
-                  onClick={handleCopy}
-                  className="flex items-center gap-2 text-sm py-1 px-3 rounded text-gray-300 hover:text-white hover:bg-gray-700 transition-colors"
-                  aria-label="Copy script"
-              >
-                  {isCopied ? (
-                      <>
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
+              <div className="flex flex-wrap items-center gap-2">
+                 <button
+                    onClick={handleCopy}
+                    className="flex items-center gap-2 text-sm py-1 px-3 rounded text-gray-300 hover:text-white bg-gray-600/50 hover:bg-gray-600 transition-colors"
+                    aria-label="Copy script"
+                >
+                    {isCopied ? (
+                        <>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                           Copied!
-                      </>
-                  ) : (
-                      <>
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                          </svg>
+                        </>
+                    ) : (
+                        <>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                           Copy Script
-                      </>
-                  )}
-              </button>
+                        </>
+                    )}
+                </button>
+                 <button
+                    onClick={handleSaveScript}
+                    className="flex items-center gap-2 text-sm py-1 px-3 rounded text-gray-300 hover:text-white bg-gray-600/50 hover:bg-gray-600 transition-colors"
+                    aria-label="Save script to file"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                    Save Script
+                </button>
+                <button
+                    onClick={handleCopySaveCommand}
+                    className="flex items-center gap-2 text-sm py-1 px-3 rounded text-gray-300 hover:text-white bg-gray-600/50 hover:bg-gray-600 transition-colors"
+                    aria-label="Copy save command"
+                >
+                    {isSaveCommandCopied ? (
+                         <>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                          Copied!
+                        </>
+                    ) : (
+                        <>
+                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+                           Copy Save Cmd
+                        </>
+                    )}
+                </button>
+              </div>
             </div>
             <pre className="p-3 bg-dark-background rounded text-sm text-cyan-200 font-mono whitespace-pre-wrap break-words max-h-96 overflow-auto">
                 <code>{result.script}</code>
