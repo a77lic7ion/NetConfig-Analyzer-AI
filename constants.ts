@@ -6,10 +6,10 @@ export const APP_SUBTITLE = "Automated analysis and conflict detection for diver
 export const GEMINI_TEXT_MODEL = "gemini-2.5-flash";
 
 export const SUPPORTED_VENDORS_DATA: SupportedVendor[] = [
-  { name: VendorName.CISCO, extensions: [".txt", ".cfg", ".log"], os: ["IOS", "NX-OS"], logo: "/logos/cisco.svg" },
-  { name: VendorName.HUAWEI, extensions: [".txt", ".cfg", ".dat"], os: ["VRP"], logo: "/logos/huawei.svg" },
-  { name: VendorName.JUNIPER, extensions: [".txt", ".cfg", ".conf"], os: ["Junos"], logo: "/logos/juniper.svg" },
-  { name: VendorName.H3C, extensions: [".cfg", ".txt"], os: ["Comware"], logo: "/logos/h3c.svg" },
+  { name: VendorName.CISCO, extensions: [".txt", ".cfg", ".log"], os: ["IOS", "NX-OS"] },
+  { name: VendorName.HUAWEI, extensions: [".txt", ".cfg", ".dat"], os: ["VRP"] },
+  { name: VendorName.JUNIPER, extensions: [".txt", ".cfg", ".conf"], os: ["Junos"] },
+  { name: VendorName.H3C, extensions: [".cfg", ".txt"], os: ["Comware"] },
 ];
 
 export const PIE_CHART_DATA: PieChartData[] = [

@@ -10,7 +10,6 @@ export interface SupportedVendor {
   name: VendorName;
   extensions: string[];
   os: string[];
-  logo: string;
 }
 
 export interface UploadedFile {
