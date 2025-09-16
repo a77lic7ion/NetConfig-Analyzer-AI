@@ -193,3 +193,29 @@ export interface CliCommandResponse {
 export interface CliScriptResponse {
   script: string;
 }
+
+// --- Company/Site Data Structures ---
+
+export interface Company {
+  id: string;
+  name: string;
+}
+
+export interface Site {
+  id:string;
+  name: string;
+  companyId: string;
+}
+
+export interface SavedParsedConfig extends ParsedConfigData {
+    id: string;
+    siteId: string;
+    savedAt: number;
+}
+
+export interface SavedCliScript extends CliScriptResponse {
+    id: string;
+    siteId: string;
+    query: string;
+    savedAt: number;
+}

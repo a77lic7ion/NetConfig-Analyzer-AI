@@ -2,10 +2,10 @@ import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
 import { ParsedConfigData, AnalysisFinding, VendorName, CliCommandResponse, CliScriptResponse } from '../types';
 import { GEMINI_TEXT_MODEL } from '../constants';
 
-const API_KEY = process.env.API_KEY;
+const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 if (!API_KEY) {
-  console.warn("API_KEY is not set. Gemini API calls will fail. Ensure process.env.API_KEY is configured.");
+  console.warn("VITE_GEMINI_API_KEY is not set. Gemini API calls will fail. Ensure VITE_GEMINI_API_KEY is configured in your .env.local file.");
 }
 
 const ai = new GoogleGenAI({ apiKey: API_KEY! });

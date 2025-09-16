@@ -1,10 +1,12 @@
 import React, { useState, useCallback, ChangeEvent, useEffect } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 import { APP_TITLE, APP_SUBTITLE, SUPPORTED_VENDORS_DATA, PIE_CHART_DATA, CORE_FEATURES_DATA, GEMINI_TEXT_MODEL } from './constants';
-import { UploadedFile, ParsedConfigData, AnalysisFinding, VendorName, PieChartData, CliCommandResponse, CliScriptResponse } from './types';
+import { UploadedFile, ParsedConfigData, AnalysisFinding, VendorName, PieChartData, CliCommandResponse, CliScriptResponse, Company, Site, SavedParsedConfig, SavedCliScript } from './types';
 import { parseConfiguration } from './services/parserService';
 import { analyzeConfigurations, getCliCommand, generateCliScript } from './services/geminiService';
-import { initDB, saveFindings, getAllFindings, clearFindings } from './services/dbService';
+import * as dbService from './services/dbService';
 import Section from './components/Section';
 import LoadingSpinner from './components/LoadingSpinner';
 import ErrorMessage from './components/ErrorMessage';
@@ -14,6 +16,9 @@ import FeatureCard from './components/FeatureCard';
 import VendorLogo from './components/VendorLogo';
 import CliHelper from './components/CliHelper';
 import ScriptWriter from './components/ScriptWriter';
+import CompanyManager from './components/CompanyManager';
+import SiteManager from './components/SiteManager';
+import SavedDataManager from './components/SavedDataManager';
 
 declare var jspdf: any;
 declare var htmlToImage: any;
@@ -26,6 +31,8 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [currentVendor, setCurrentVendor] = useState<VendorName>(SUPPORTED_VENDORS_DATA[0].name);
   const [isDbReady, setIsDbReady] = useState(false);
+  const [lastSavedStatus, setLastSavedStatus] = useState<string | null>(null);
+
 
   // State for CLI Helper
   const [cliQuery, setCliQuery] = useState<string>('');
@@ -41,6 +48,15 @@ const App: React.FC = () => {
   const [isScriptWriterLoading, setIsScriptWriterLoading] = useState<boolean>(false);
   const [scriptWriterError, setScriptWriterError] = useState<string | null>(null);
 
+  // State for Company/Site Management
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [sites, setSites] = useState<Site[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
+  const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
+  const [savedParsedConfigs, setSavedParsedConfigs] = useState<SavedParsedConfig[]>([]);
+  const [savedCliScripts, setSavedCliScripts] = useState<SavedCliScript[]>([]);
+
+
   const featureIcons: { [key: string]: React.ReactNode } = {
     ingestion: <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>,
     parsing: <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" /></svg>,
@@ -50,12 +66,26 @@ const App: React.FC = () => {
     'cli-helper': <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>,
   };
 
+  const showSaveStatus = (message: string) => {
+    setLastSavedStatus(message);
+    setTimeout(() => setLastSavedStatus(null), 3000);
+  };
+
+  const loadCompanies = useCallback(async () => {
+    if (!isDbReady) return;
+    try {
+      const companies = await dbService.getCompanies();
+      setCompanies(companies);
+    } catch (e) {
+      setError("Failed to load companies.");
+    }
+  }, [isDbReady]);
+
   useEffect(() => {
     const initializeApp = async () => {
         try {
-            await initDB();
+            await dbService.initDB();
             setIsDbReady(true);
-            // Do not load previous findings to ensure a clean start
         } catch (e) {
             console.error("Failed to initialize database:", e);
             setError("Could not initialize local database.");
@@ -63,6 +93,89 @@ const App: React.FC = () => {
     };
     initializeApp();
   }, []);
+
+  useEffect(() => {
+    if (isDbReady) {
+      loadCompanies();
+    }
+  }, [isDbReady, loadCompanies]);
+
+  useEffect(() => {
+    const loadSites = async () => {
+      if (selectedCompanyId) {
+        try {
+          const sites = await dbService.getSites(selectedCompanyId);
+          setSites(sites);
+        } catch (e) {
+          setError("Failed to load sites.");
+        }
+      } else {
+        setSites([]);
+      }
+    };
+    loadSites();
+  }, [selectedCompanyId]);
+
+  useEffect(() => {
+    const loadSavedData = async () => {
+      if (selectedSiteId) {
+        try {
+          const configs = await dbService.getSavedParsedConfigs(selectedSiteId);
+          const scripts = await dbService.getSavedCliScripts(selectedSiteId);
+          setSavedParsedConfigs(configs);
+          setSavedCliScripts(scripts);
+        } catch (e) {
+          setError("Failed to load saved data.");
+        }
+      } else {
+        setSavedParsedConfigs([]);
+        setSavedCliScripts([]);
+      }
+    };
+    loadSavedData();
+  }, [selectedSiteId]);
+
+  const handleAddCompany = async (name: string) => {
+    try {
+      await dbService.addCompany(name);
+      loadCompanies();
+    } catch (e) {
+      setError("Failed to add company.");
+    }
+  };
+
+  const handleDeleteCompany = async (companyId: string) => {
+    try {
+      await dbService.deleteCompany(companyId);
+      setSelectedCompanyId(null);
+      setSelectedSiteId(null);
+      loadCompanies();
+    } catch (e) {
+      setError("Failed to delete company.");
+    }
+  };
+
+  const handleAddSite = async (name: string) => {
+    if (!selectedCompanyId) return;
+    try {
+      await dbService.addSite(name, selectedCompanyId);
+      const sites = await dbService.getSites(selectedCompanyId);
+      setSites(sites);
+    } catch (e) {
+      setError("Failed to add site.");
+    }
+  };
+
+  const handleDeleteSite = async (siteId: string) => {
+    try {
+      await dbService.deleteSite(siteId);
+      setSelectedSiteId(null);
+      const sites = await dbService.getSites(selectedCompanyId!);
+      setSites(sites);
+    } catch (e) {
+      setError("Failed to delete site.");
+    }
+  };
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     setError(null);
@@ -117,7 +230,7 @@ const App: React.FC = () => {
       const findings = await analyzeConfigurations([parsedConfig]);
       setAnalysisFindings(findings);
       if (isDbReady) {
-        await saveFindings(findings);
+        await dbService.saveFindings(findings);
       }
     } catch (err) {
       console.error("Error detecting findings:", err);
@@ -164,6 +277,115 @@ const App: React.FC = () => {
     }
   }, [scriptWriterQuery, scriptWriterVendor]);
   
+  const handleSaveParsedConfig = async () => {
+    if (!parsedConfig || !selectedSiteId) {
+      setError("No parsed config to save or no site selected.");
+      return;
+    }
+    try {
+      await dbService.saveParsedConfig(parsedConfig, selectedSiteId);
+      const configs = await dbService.getSavedParsedConfigs(selectedSiteId);
+      setSavedParsedConfigs(configs);
+      showSaveStatus("Configuration saved successfully!");
+    } catch (e) {
+      setError("Failed to save configuration.");
+    }
+  };
+
+  const handleSaveCliScript = async () => {
+    if (!scriptWriterResult || !selectedSiteId) {
+      setError("No script to save or no site selected.");
+      return;
+    }
+    try {
+      await dbService.saveCliScript(scriptWriterResult, scriptWriterQuery, selectedSiteId);
+      const scripts = await dbService.getSavedCliScripts(selectedSiteId);
+      setSavedCliScripts(scripts);
+      showSaveStatus("CLI script saved successfully!");
+    } catch (e) {
+      setError("Failed to save CLI script.");
+    }
+  };
+
+  const handleLoadConfig = (config: ParsedConfigData) => {
+    setParsedConfig(config);
+    setAnalysisFindings([]);
+    setUploadedFile({
+      id: `loaded-${Date.now()}`,
+      name: config.fileName || 'Loaded Config',
+      content: config.rawConfig || '',
+      vendor: config.vendor || VendorName.CISCO,
+    });
+  };
+
+  const handleDeleteConfig = async (id: string) => {
+    if (!selectedSiteId) return;
+    try {
+      await dbService.deleteSavedParsedConfig(id);
+      const configs = await dbService.getSavedParsedConfigs(selectedSiteId);
+      setSavedParsedConfigs(configs);
+    } catch (e) {
+      setError("Failed to delete saved config.");
+    }
+  };
+
+  const handleDeleteScript = async (id: string) => {
+    if (!selectedSiteId) return;
+    try {
+      await dbService.deleteSavedCliScript(id);
+      const scripts = await dbService.getSavedCliScripts(selectedSiteId);
+      setSavedCliScripts(scripts);
+    } catch (e) {
+      setError("Failed to delete saved script.");
+    }
+  };
+
+  const handleExportToZip = async () => {
+    if (!selectedCompanyId) {
+        setError("Please select a company to export.");
+        return;
+    }
+
+    const company = companies.find(c => c.id === selectedCompanyId);
+    if (!company) {
+        setError("Could not find the selected company.");
+        return;
+    }
+
+    setIsLoading(true);
+    try {
+        const zip = new JSZip();
+        const companyFolder = zip.folder(company.name.replace(/[^a-zA-Z0-9]/g, '_'));
+
+        const sitesToExport = await dbService.getSites(company.id);
+
+        for (const site of sitesToExport) {
+            const siteFolder = companyFolder!.folder(site.name.replace(/[^a-zA-Z0-9]/g, '_'));
+            const configsFolder = siteFolder!.folder('configs');
+            const scriptsFolder = siteFolder!.folder('scripts');
+
+            const configs = await dbService.getSavedParsedConfigs(site.id);
+            for (const config of configs) {
+                const configFileName = `${(config.hostname || 'config').replace(/[^a-zA-Z0-9]/g, '_')}_${config.id}.json`;
+                configsFolder!.file(configFileName, JSON.stringify(config, null, 2));
+            }
+
+            const scripts = await dbService.getSavedCliScripts(site.id);
+            for (const script of scripts) {
+                const scriptFileName = `script_${script.id}.txt`;
+                scriptsFolder!.file(scriptFileName, script.script);
+            }
+        }
+
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        saveAs(zipBlob, `${company.name}_export.zip`);
+
+    } catch (e) {
+        setError(`Failed to export data: ${(e as Error).message}`);
+    } finally {
+        setIsLoading(false);
+    }
+  };
 
   const handleExport = async (elementId: string, filename: string, orientation: 'p' | 'l' = 'p') => {
     const reportElement = document.getElementById(elementId);
@@ -243,7 +465,7 @@ const App: React.FC = () => {
     setAnalysisFindings([]);
     setError(null);
     if(isDbReady) {
-        await clearFindings();
+        await dbService.clearFindings();
     }
     const fileInput = document.getElementById('file-upload') as HTMLInputElement;
     if(fileInput) fileInput.value = '';
@@ -298,11 +520,47 @@ const App: React.FC = () => {
         <p className="text-md md:text-lg text-medium-text mt-2">{APP_SUBTITLE}</p>
       </header>
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+        <Section title="Data Management">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <CompanyManager
+                companies={companies}
+                onAddCompany={handleAddCompany}
+                onSelectCompany={setSelectedCompanyId}
+                onDeleteCompany={handleDeleteCompany}
+                selectedCompanyId={selectedCompanyId}
+                onExport={handleExportToZip}
+              />
+            </div>
+            <div>
+              <SiteManager
+                sites={sites}
+                onAddSite={handleAddSite}
+                onSelectSite={setSelectedSiteId}
+                onDeleteSite={handleDeleteSite}
+                selectedSiteId={selectedSiteId}
+                selectedCompanyId={selectedCompanyId}
+              />
+            </div>
+          </div>
+          <SavedDataManager
+            savedConfigs={savedParsedConfigs}
+            savedScripts={savedCliScripts}
+            onLoadConfig={handleLoadConfig}
+            onDeleteConfig={handleDeleteConfig}
+            onDeleteScript={handleDeleteScript}
+            selectedSiteId={selectedSiteId}
+          />
+        </Section>
+
         <Section title="1. Import Config & Parse" className="bg-medium-background/80">
             {renderFileUploadSection()}
              <div className="mt-6 flex flex-col md:flex-row md:justify-start gap-4">
                 <button onClick={handleRunAnalysis} disabled={isLoading || !parsedConfig} className="w-full md:w-auto bg-sky-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-sky-700 transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed">
                     {isLoading ? 'Analyzing...' : '2. Run Analysis'}
+                </button>
+                <button onClick={handleSaveParsedConfig} disabled={isLoading || !parsedConfig || !selectedSiteId} className="w-full md:w-auto bg-green-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed">
+                    Save Config
                 </button>
                 <button onClick={handleClearAll} disabled={isLoading} className="w-full md:w-auto bg-red-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-red-700 transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed">
                     Clear All
@@ -334,10 +592,21 @@ const App: React.FC = () => {
             error={scriptWriterError}
             result={scriptWriterResult}
           />
+           {scriptWriterResult && (
+            <div className="mt-4">
+              <button
+                onClick={handleSaveCliScript}
+                disabled={!selectedSiteId}
+                className="w-full md:w-auto bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed"
+              >
+                Save Script
+              </button>
+            </div>
+          )}
         </Section>
 
 
-        <ErrorMessage message={error || ''} />
+        <ErrorMessage message={error || lastSavedStatus} />
 
         {isLoading && <LoadingSpinner text={isLoading ? 'Processing...' : 'Loading...'} />}
 
