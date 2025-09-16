@@ -10,12 +10,14 @@
   },
   "dependencies": {
     "@google/genai": "^1.6.0",
+    "file-saver": "^2.0.5",
     "jszip": "^3.10.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "recharts": "^3.0.0"
   },
   "devDependencies": {
+    "@types/file-saver": "^2.0.7",
     "@types/jszip": "^3.4.0",
     "@types/node": "^22.14.0",
     "typescript": "~5.8.2",
