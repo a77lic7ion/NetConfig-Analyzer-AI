@@ -6,6 +6,25 @@ export enum VendorName {
   ALL = "All"
 }
 
+export enum LlmProvider {
+  GEMINI = "gemini",
+  OPENAI = "openai",
+  OLLAMA = "ollama",
+}
+
+export interface LlmSettings {
+  provider: LlmProvider;
+  openAi: {
+    apiKey: string;
+    model: string;
+  };
+  ollama: {
+    baseUrl: string;
+    model: string;
+  };
+  useLlmForAnalysis: boolean;
+}
+
 export interface SupportedVendor {
   name: VendorName;
   extensions: string[];

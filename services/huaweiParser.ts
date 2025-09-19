@@ -171,8 +171,8 @@ export function parseHuaweiConfigLocal(configText: string): ParsedConfigData {
 
         if (line.startsWith('#') || line.length === 0) {
             if (currentContext) currentContext = '';
-            if (currentInterface) { data.ports.push(currentInterface); currentInterface = null; }
-            if (currentVty) { data.connections.push(currentVty); currentVty = null; }
+            if (currentInterface) { data.ports!.push(currentInterface); currentInterface = null; }
+            if (currentVty) { data.connections!.push(currentVty); currentVty = null; }
             continue;
         }
 
@@ -214,55 +214,55 @@ export function parseHuaweiConfigLocal(configText: string): ParsedConfigData {
                 if (subLine.startsWith('description ')) {
                     vlan.name = subLine.replace('description ', '').trim();
                 }
-                vlan.rawConfig.push(subLine);
+                vlan.rawConfig!.push(subLine);
                 j++;
             }
-            data.vlans.push(vlan);
+            data.vlans!.push(vlan);
             i = j - 1;
             continue;
         }
 
 
         const ipRouteMatch = line.match(/^ip route-static 0\.0\.0\.0 0\.0\.0\.0\s+(\S+)/);
-        if (ipRouteMatch) { data.routing.defaultRoute = ipRouteMatch[1]; continue; }
+        if (ipRouteMatch) { data.routing!.defaultRoute = ipRouteMatch[1]; continue; }
 
         const dnsMatch = line.match(/^dns server\s+(.+)/);
-        if (dnsMatch) { data.other.dnsServers = dnsMatch[1]; continue; }
+        if (dnsMatch) { data.other!.dnsServers = dnsMatch[1]; continue; }
 
         // --- Security and AAA ---
-        if (line === 'aaa') { data.aaa.status = 'Configured'; data.aaa.details.push("AAA Enabled"); continue; }
+        if (line === 'aaa') { data.aaa!.status = 'Configured'; data.aaa!.details.push("AAA Enabled"); continue; }
         const localUserMatch = line.match(/^local-user\s+(\S+)\s+password\s+.+/);
-        if (localUserMatch) { data.usernames.push({ name: localUserMatch[1], config: line }); continue; }
-        if (line.includes('ssh server enable')) data.security.present.push('SSH Enabled');
-        if (line.includes('undo http server enable')) data.security.present.push('HTTP Server Disabled');
-        if (line.includes('password-policy enable')) data.security.present.push('Password Policy Enabled');
+        if (localUserMatch) { data.usernames!.push({ name: localUserMatch[1], config: line }); continue; }
+        if (line.includes('stelnet server enable')) data.security!.present.push('SSH Enabled');
+        if (line.includes('undo http server enable')) data.security!.present.push('HTTP Server Disabled');
+        if (line.includes('password-policy enable')) data.security!.present.push('Password Policy Enabled');
         
         // --- SNMP ---
         const snmpMatch = line.match(/^snmp-agent\s+(.+)/);
         if(snmpMatch) {
-            data.snmp.status = 'Configured';
-            data.snmp.details.push(snmpMatch[1].trim());
+            data.snmp!.status = 'Configured';
+            data.snmp!.details.push(snmpMatch[1].trim());
             continue;
         }
 
         // --- OSPF section ---
         const ospfStartMatch = line.match(/^ospf\s+(\d*)/);
         if (ospfStartMatch) {
-            data.ospf.status = 'Configured';
-            data.ospf.processId = ospfStartMatch[1] || '1';
-            data.ospf.rawConfig.push(line);
+            data.ospf!.status = 'Configured';
+            data.ospf!.processId = ospfStartMatch[1] || '1';
+            data.ospf!.rawConfig!.push(line);
             let areaId = '';
             let j = i + 1;
             while(j < lines.length && !lines[j].startsWith('ospf ') && lines[j] !== '#') {
                 const subLine = lines[j].trim();
                 if (subLine.startsWith('area ')) areaId = subLine.split(' ')[1];
                 const routerIdMatch = subLine.match(/^\s*router-id\s+(\S+)/);
-                if(routerIdMatch) data.ospf.routerId = routerIdMatch[1];
+                if(routerIdMatch) data.ospf!.routerId = routerIdMatch[1];
                 const networkMatch = subLine.match(/^\s*network\s+([\d\.]+)\s+([\d\.]+)/);
                 if (networkMatch && areaId) {
-                    data.ospf.networks.push({ network: networkMatch[1], wildcard: networkMatch[2], area: areaId });
+                    data.ospf!.networks!.push({ network: networkMatch[1], wildcard: networkMatch[2], area: areaId });
                 }
-                data.ospf.rawConfig.push(subLine);
+                data.ospf!.rawConfig!.push(subLine);
                 j++;
             }
             i = j - 1;
@@ -292,25 +292,25 @@ export function parseHuaweiConfigLocal(configText: string): ParsedConfigData {
                 let j = i + 1;
                  while(j < lines.length && !lines[j].trim().startsWith('interface ') && lines[j].trim() !== '#') {
                     const subLine = lines[j].trim();
-                    svi.rawConfig.push(subLine);
+                    svi.rawConfig!.push(subLine);
                     const ipAddrMatch = subLine.match(/^\s*ip address\s+([\d\.]+)\s+([\d\.]+)/);
                     if (ipAddrMatch) {
                         svi.ipAddress = ipAddrMatch[1];
                         svi.subnetMask = ipAddrMatch[2];
                         const subnetInfo = calculateSubnetInfo(svi.ipAddress, svi.subnetMask);
-                        data.ipRanges.push({ vlanId, svi: ifaceName, ...subnetInfo, status: 'up' });
+                        data.ipRanges!.push({ vlanId, svi: ifaceName, ...subnetInfo, status: 'up' });
                     }
                     if (subLine.includes('shutdown')) svi.status = 'down';
                     const descMatch = subLine.match(/^\s*description\s+(.+)/);
                     if (descMatch) svi.additionalInfo += `Description: ${descMatch[1]}`;
                     j++;
                 }
-                data.svis.push(svi);
+                data.svis!.push(svi);
                 i = j - 1;
             } else { 
                 currentInterface = { port: ifaceName, type: 'Physical', config: [line], description: '', status: 'up', members: [] };
                 if (ifaceName.toLowerCase().startsWith('eth-trunk')) {
-                    data.portChannels.push(ifaceName);
+                    data.portChannels!.push(ifaceName);
                 }
             }
             continue;
@@ -321,7 +321,7 @@ export function parseHuaweiConfigLocal(configText: string): ParsedConfigData {
             const descMatch = line.match(/^\s*description\s+(.+)/);
             if (descMatch) {
                 currentInterface.description = descMatch[1];
-                if (currentInterface.description.toLowerCase().includes('uplink')) data.uplinks.push(currentInterface.port);
+                if (currentInterface.description.toLowerCase().includes('uplink')) data.uplinks!.push(currentInterface.port);
             }
             if (line.includes('shutdown')) currentInterface.status = 'down';
             
@@ -332,14 +332,14 @@ export function parseHuaweiConfigLocal(configText: string): ParsedConfigData {
             if (ethTrunkMatch) {
                 const pc = `Eth-Trunk${ethTrunkMatch[1]}`;
                 currentInterface.members.push(pc);
-                if (!data.portChannels.includes(pc)) data.portChannels.push(pc);
+                if (!data.portChannels!.includes(pc)) data.portChannels!.push(pc);
             }
         }
     }
     
-    data.security.missing = ['SSH Enabled', 'HTTP Server Disabled', 'Password Policy Enabled']
-        .filter(f => !data.security.present.some(p => p.includes(f)));
+    data.security!.missing = ['SSH Enabled', 'HTTP Server Disabled', 'Password Policy Enabled']
+        .filter(f => !data.security!.present.some(p => p.includes(f)));
 
-    data.ports = consolidatePortRange(data.ports);
+    data.ports = consolidatePortRange(data.ports!);
     return data;
 }

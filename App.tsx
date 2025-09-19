@@ -1,10 +1,10 @@
 import React, { useState, useCallback, ChangeEvent, useEffect } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { APP_TITLE, APP_SUBTITLE, SUPPORTED_VENDORS_DATA, PIE_CHART_DATA, CORE_FEATURES_DATA, GEMINI_TEXT_MODEL } from './constants';
-import { UploadedFile, ParsedConfigData, AnalysisFinding, VendorName, PieChartData, CliCommandResponse, CliScriptResponse } from './types';
+import { UploadedFile, ParsedConfigData, AnalysisFinding, VendorName, PieChartData, CliCommandResponse, CliScriptResponse, LlmSettings, LlmProvider } from './types';
 import { parseConfiguration } from './services/parserService';
 import { getCliCommand, generateCliScript } from './services/geminiService';
-import { runLocalAnalysis } from './services/analysisService';
+import { runAnalysis } from './services/analysisService';
 import { initDB, saveFindings, getAllFindings, clearFindings } from './services/dbService';
 import Section from './components/Section';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -15,9 +15,23 @@ import FeatureCard from './components/FeatureCard';
 import VendorLogo from './components/VendorLogo';
 import CliHelper from './components/CliHelper';
 import ScriptWriter from './components/ScriptWriter';
+import SettingsModal from './components/SettingsModal';
 
 declare var jspdf: any;
 declare var htmlToImage: any;
+
+const DEFAULT_LLM_SETTINGS: LlmSettings = {
+  provider: LlmProvider.GEMINI,
+  openAi: {
+    apiKey: '',
+    model: 'gpt-4-turbo',
+  },
+  ollama: {
+    baseUrl: 'http://localhost:11434',
+    model: 'llama3',
+  },
+  useLlmForAnalysis: false,
+};
 
 const App: React.FC = () => {
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
@@ -27,6 +41,10 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [currentVendor, setCurrentVendor] = useState<VendorName>(SUPPORTED_VENDORS_DATA[0].name);
   const [isDbReady, setIsDbReady] = useState(false);
+
+  // Settings State
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [llmSettings, setLlmSettings] = useState<LlmSettings>(DEFAULT_LLM_SETTINGS);
 
   // State for CLI Helper
   const [cliQuery, setCliQuery] = useState<string>('');
@@ -56,7 +74,10 @@ const App: React.FC = () => {
         try {
             await initDB();
             setIsDbReady(true);
-            // Do not load previous findings to ensure a clean start
+            const savedSettings = localStorage.getItem('llmSettings');
+            if (savedSettings) {
+              setLlmSettings(JSON.parse(savedSettings));
+            }
         } catch (e) {
             console.error("Failed to initialize database:", e);
             setError("Could not initialize local database.");
@@ -64,6 +85,12 @@ const App: React.FC = () => {
     };
     initializeApp();
   }, []);
+  
+  const handleSaveSettings = (settings: LlmSettings) => {
+    setLlmSettings(settings);
+    localStorage.setItem('llmSettings', JSON.stringify(settings));
+    setIsSettingsModalOpen(false);
+  };
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     setError(null);
@@ -115,8 +142,7 @@ const App: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      // Use the new local analysis service instead of the Gemini service
-      const findings = await runLocalAnalysis(parsedConfig);
+      const findings = await runAnalysis(parsedConfig, llmSettings);
       setAnalysisFindings(findings);
       if (isDbReady) {
         await saveFindings(findings);
@@ -126,7 +152,7 @@ const App: React.FC = () => {
       setError(`Failed to run analysis: ${(err as Error).message}`);
     }
     setIsLoading(false);
-  }, [parsedConfig, isDbReady]);
+  }, [parsedConfig, isDbReady, llmSettings]);
 
   const handleGetCliCommand = useCallback(async () => {
     if (!cliQuery) {
@@ -137,7 +163,7 @@ const App: React.FC = () => {
     setCliError(null);
     setCliResult(null);
     try {
-        const result = await getCliCommand(cliQuery, cliVendor);
+        const result = await getCliCommand(cliQuery, cliVendor, llmSettings);
         setCliResult(result);
     } catch (err) {
         console.error("Error getting CLI command:", err);
@@ -145,7 +171,7 @@ const App: React.FC = () => {
     } finally {
         setIsCliLoading(false);
     }
-  }, [cliQuery, cliVendor]);
+  }, [cliQuery, cliVendor, llmSettings]);
 
   const handleGenerateScript = useCallback(async () => {
     if (!scriptWriterQuery) {
@@ -156,7 +182,7 @@ const App: React.FC = () => {
     setScriptWriterError(null);
     setScriptWriterResult(null);
     try {
-        const result = await generateCliScript(scriptWriterQuery, scriptWriterVendor);
+        const result = await generateCliScript(scriptWriterQuery, scriptWriterVendor, llmSettings);
         setScriptWriterResult(result);
     } catch (err) {
         console.error("Error generating script:", err);
@@ -164,7 +190,7 @@ const App: React.FC = () => {
     } finally {
         setIsScriptWriterLoading(false);
     }
-  }, [scriptWriterQuery, scriptWriterVendor]);
+  }, [scriptWriterQuery, scriptWriterVendor, llmSettings]);
   
 
   const handleExport = async (elementId: string, filename: string, orientation: 'p' | 'l' = 'p') => {
@@ -257,7 +283,7 @@ const App: React.FC = () => {
 
   const renderFileUploadSection = () => (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-        <div>
+        <div title="Select the network device vendor before uploading the configuration file.">
             <label htmlFor="vendor-select" className="block text-sm font-medium text-light-text mb-1">Select Vendor:</label>
             <select
                 id="vendor-select"
@@ -268,7 +294,7 @@ const App: React.FC = () => {
                 {SUPPORTED_VENDORS_DATA.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
             </select>
         </div>
-        <div>
+        <div title="Click to browse and upload a configuration file for the selected vendor.">
             <label htmlFor="file-upload" className="block text-sm font-medium text-light-text mb-1">Upload Config & Parse ({SUPPORTED_VENDORS_DATA.find(v => v.name === currentVendor)?.extensions.join(', ')}):</label>
             <div className="flex items-center">
                 <label htmlFor="file-upload" className="cursor-pointer bg-brand-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-brand-secondary transition-colors">
@@ -295,18 +321,47 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen text-dark-text">
-      <header className="text-center py-8">
+       {isSettingsModalOpen && (
+        <SettingsModal
+          currentSettings={llmSettings}
+          onSave={handleSaveSettings}
+          onClose={() => setIsSettingsModalOpen(false)}
+        />
+      )}
+      <header className="text-center py-8 relative">
         <h1 className="text-4xl md:text-5xl font-bold text-brand-primary">{APP_TITLE}</h1>
         <p className="text-md md:text-lg text-medium-text mt-2">{APP_SUBTITLE}</p>
+        <button
+          onClick={() => setIsSettingsModalOpen(true)}
+          className="absolute top-8 right-8 p-2 rounded-full hover:bg-light-background/50 transition-colors"
+          aria-label="Open settings"
+          title="Configure LLM provider (Gemini, OpenAI, Ollama) and other application settings."
+        >
+          <img src="/public/icons/gear.svg" alt="Settings" className="h-6 w-6" />
+        </button>
       </header>
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         <Section title="1. Import Config & Parse" className="bg-medium-background/80">
             {renderFileUploadSection()}
              <div className="mt-6 flex flex-col md:flex-row md:justify-start gap-4">
-                <button onClick={handleRunAnalysis} disabled={isLoading || !parsedConfig} className="w-full md:w-auto bg-sky-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-sky-700 transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed">
-                    {isLoading ? 'Analyzing...' : '2. Run Analysis'}
+                <button 
+                  onClick={handleRunAnalysis} 
+                  disabled={isLoading || !parsedConfig} 
+                  className="w-full md:w-auto bg-sky-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-sky-700 transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed"
+                  title={
+                    llmSettings.useLlmForAnalysis
+                      ? "Sends the parsed configuration to the selected AI model for a deep audit of security, best practices, and potential issues."
+                      : "Performs a fast, offline analysis using a built-in set of rules for the selected vendor."
+                  }
+                >
+                    {isLoading ? 'Analyzing...' : `2. Run ${llmSettings.useLlmForAnalysis ? 'AI' : 'Local'} Analysis`}
                 </button>
-                <button onClick={handleClearAll} disabled={isLoading} className="w-full md:w-auto bg-red-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-red-700 transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed">
+                <button 
+                  onClick={handleClearAll} 
+                  disabled={isLoading} 
+                  className="w-full md:w-auto bg-red-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-red-700 transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed"
+                  title="Removes the uploaded file, parsed data, and analysis results from the view."
+                >
                     Clear All
                 </button>
             </div>

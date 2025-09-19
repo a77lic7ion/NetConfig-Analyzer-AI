@@ -10,7 +10,7 @@ export const analyzeHuaweiConfig = (config: ParsedConfigData): AnalysisFinding[]
             id: 'huawei_sec_ssh_disabled',
             type: 'Security Risk',
             severity: 'High',
-            description: 'The SSH server is not enabled.',
+            description: 'The SSH server (Stelnet) is not enabled.',
             devicesInvolved: [fileName],
             details: { check: 'Global Configuration' },
             recommendation: 'Enable the SSH server for secure remote management. Telnet is insecure and should be avoided.',

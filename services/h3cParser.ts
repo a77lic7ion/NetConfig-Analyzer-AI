@@ -170,38 +170,38 @@ export function parseH3cConfigLocal(configText: string): ParsedConfigData {
                 vlan.rawConfig.push(lines[i+1]);
                 i++;
             }
-            data.vlans.push(vlan);
+            data.vlans!.push(vlan);
         }
 
         const ipRouteMatch = line.match(/^ip route-static 0\.0\.0\.0 0\.0\.0\.0\s+(\S+)/);
-        if (ipRouteMatch) data.routing.defaultRoute = ipRouteMatch[1];
+        if (ipRouteMatch) data.routing!.defaultRoute = ipRouteMatch[1];
 
         const dnsMatch = line.match(/^dns server\s+(.+)/);
-        if (dnsMatch) data.other.dnsServers = dnsMatch[1];
+        if (dnsMatch) data.other!.dnsServers = dnsMatch[1];
 
         // OSPF section
         const ospfStartMatch = line.match(/^ospf\s+(\d*)/);
         if (ospfStartMatch) {
             inOspfSection = true;
-            data.ospf.status = 'Configured';
-            data.ospf.processId = ospfStartMatch[1] || '1';
-            data.ospf.rawConfig.push(line);
+            data.ospf!.status = 'Configured';
+            data.ospf!.processId = ospfStartMatch[1] || '1';
+            data.ospf!.rawConfig!.push(line);
             
             let areaId = '';
             while(i + 1 < lines.length) {
                 i++;
                 line = lines[i];
                 if (line.startsWith('#') || line === ']') break;
-                data.ospf.rawConfig.push(line);
+                data.ospf!.rawConfig!.push(line);
                 const areaMatch = line.match(/^\s*area\s+(\S+)/);
                 if (areaMatch) areaId = areaMatch[1];
                 
                 const routerIdMatch = line.match(/^\s*router-id\s+(\S+)/);
-                if(routerIdMatch) data.ospf.routerId = routerIdMatch[1];
+                if(routerIdMatch) data.ospf!.routerId = routerIdMatch[1];
 
                 const networkMatch = line.match(/^\s*network\s+([\d\.]+)\s+([\d\.]+)/);
                 if (networkMatch && areaId) {
-                    data.ospf.networks.push({ network: networkMatch[1], wildcard: networkMatch[2], area: areaId });
+                    data.ospf!.networks!.push({ network: networkMatch[1], wildcard: networkMatch[2], area: areaId });
                 }
             }
             inOspfSection = false;
@@ -220,24 +220,24 @@ export function parseH3cConfigLocal(configText: string): ParsedConfigData {
                 while(i + 1 < lines.length && !lines[i + 1].startsWith('interface ') && !lines[i + 1].startsWith('#')) {
                     i++;
                     line = lines[i];
-                    svi.rawConfig.push(line);
+                    svi.rawConfig!.push(line);
                     const ipAddrMatch = line.match(/^\s*ip address\s+([\d\.]+)\s+([\d\.]+)/);
                     if (ipAddrMatch) {
                         svi.ipAddress = ipAddrMatch[1];
                         svi.subnetMask = ipAddrMatch[2];
                         const subnetInfo = calculateSubnetInfo(svi.ipAddress, svi.subnetMask);
-                        data.ipRanges.push({ vlanId, svi: ifaceName, ...subnetInfo, status: 'up' });
+                        data.ipRanges!.push({ vlanId, svi: ifaceName, ...subnetInfo, status: 'up' });
                     }
                     if (line.includes('shutdown')) svi.status = 'down';
                     const descMatch = line.match(/^\s*description\s+(.+)/);
                     if (descMatch) svi.additionalInfo += `Description: ${descMatch[1]}`;
                 }
-                data.svis.push(svi);
+                data.svis!.push(svi);
 
             } else { // Physical Interface
                 currentInterface = { port: ifaceName, type: 'Physical', config: [line], description: '', status: 'up', members: [] };
                  if (ifaceName.toLowerCase().startsWith('bridge-aggregation')) {
-                    data.portChannels.push(ifaceName);
+                    data.portChannels!.push(ifaceName);
                 }
                 while(i + 1 < lines.length && !lines[i + 1].startsWith('interface ') && !lines[i + 1].startsWith('#')) {
                     i++;
@@ -246,7 +246,7 @@ export function parseH3cConfigLocal(configText: string): ParsedConfigData {
                     const descMatch = line.match(/^\s*description\s+(.+)/);
                     if (descMatch) {
                         currentInterface.description = descMatch[1];
-                        if (currentInterface.description.toLowerCase().includes('uplink')) data.uplinks.push(currentInterface.port);
+                        if (currentInterface.description.toLowerCase().includes('uplink')) data.uplinks!.push(currentInterface.port);
                     }
                     if (line.includes('shutdown')) currentInterface.status = 'down';
                     
@@ -257,14 +257,14 @@ export function parseH3cConfigLocal(configText: string): ParsedConfigData {
                     if (linkAggMatch) {
                         const pc = `Bridge-Aggregation${linkAggMatch[1]}`;
                         currentInterface.members.push(pc);
-                        if (!data.portChannels.includes(pc)) data.portChannels.push(pc);
+                        if (!data.portChannels!.includes(pc)) data.portChannels!.push(pc);
                     }
                 }
-                data.ports.push(currentInterface);
+                data.ports!.push(currentInterface);
             }
         }
     }
     
-    data.ports = consolidatePortRange(data.ports);
+    data.ports = consolidatePortRange(data.ports!);
     return data;
 }
