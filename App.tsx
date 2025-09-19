@@ -1,9 +1,9 @@
 import React, { useState, useCallback, ChangeEvent, useEffect } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { APP_TITLE, APP_SUBTITLE, SUPPORTED_VENDORS_DATA, PIE_CHART_DATA, CORE_FEATURES_DATA, GEMINI_TEXT_MODEL } from './constants';
-import { UploadedFile, ParsedConfigData, AnalysisFinding, VendorName, PieChartData, CliCommandResponse, CliScriptResponse, LlmSettings, LlmProvider } from './types';
+import { UploadedFile, ParsedConfigData, AnalysisFinding, VendorName, PieChartData, CliCommandResponse, CliScriptResponse, LlmSettings, LlmProvider, ChatMessage } from './types';
 import { parseConfiguration } from './services/parserService';
-import { getCliCommand, generateCliScript } from './services/geminiService';
+import { getCliCommand, generateCliScript, askAboutAnalysis } from './services/geminiService';
 import { runAnalysis } from './services/analysisService';
 import { initDB, saveFindings, getAllFindings, clearFindings } from './services/dbService';
 import Section from './components/Section';
@@ -16,6 +16,7 @@ import VendorLogo from './components/VendorLogo';
 import CliHelper from './components/CliHelper';
 import ScriptWriter from './components/ScriptWriter';
 import SettingsModal from './components/SettingsModal';
+import ChatAgent from './components/ChatAgent';
 
 const DEFAULT_LLM_SETTINGS: LlmSettings = {
   provider: LlmProvider.GEMINI,
@@ -57,13 +58,19 @@ const App: React.FC = () => {
   const [isScriptWriterLoading, setIsScriptWriterLoading] = useState<boolean>(false);
   const [scriptWriterError, setScriptWriterError] = useState<string | null>(null);
 
+  // State for Chat Agent
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+  const [chatQuery, setChatQuery] = useState<string>('');
+  const [isChatLoading, setIsChatLoading] = useState<boolean>(false);
+  const [chatError, setChatError] = useState<string | null>(null);
+
   const featureIcons: { [key: string]: React.ReactNode } = {
-    ingestion: <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>,
-    parsing: <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" /></svg>,
-    analysis: <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
-    reporting: <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>,
-    export: <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
-    'cli-helper': <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>,
+    ingestion: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>,
+    parsing: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" /></svg>,
+    analysis: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+    reporting: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>,
+    export: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
+    'cli-helper': <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>,
   };
 
   useEffect(() => {
@@ -189,6 +196,41 @@ const App: React.FC = () => {
     }
   }, [scriptWriterQuery, scriptWriterVendor, llmSettings]);
   
+  const handleSendChatMessage = useCallback(async () => {
+    if (!chatQuery.trim() || !analysisFindings.length) return;
+
+    const newUserMessage: ChatMessage = { role: 'user', content: chatQuery };
+    setChatHistory(prev => [...prev, newUserMessage]);
+    setChatQuery('');
+    setIsChatLoading(true);
+    setChatError(null);
+
+    try {
+        const reportAsString = JSON.stringify(analysisFindings, null, 2);
+        const response = await askAboutAnalysis(reportAsString, chatHistory, chatQuery, llmSettings);
+
+        const newAgentMessage: ChatMessage = {
+            role: 'agent',
+            content: response.text,
+            sources: response.sources
+        };
+        setChatHistory(prev => [...prev, newAgentMessage]);
+
+    } catch (err) {
+        console.error("Error with chat agent:", err);
+        const errorMessage = `Chat agent failed: ${(err as Error).message}`;
+        setChatError(errorMessage);
+        const errorChatMessage: ChatMessage = {
+            role: 'agent',
+            content: `Sorry, I encountered an error. Please try again.\nError: ${errorMessage}`
+        };
+        setChatHistory(prev => [...prev, errorChatMessage]);
+
+    } finally {
+        setIsChatLoading(false);
+    }
+}, [chatQuery, analysisFindings, chatHistory, llmSettings]);
+
 
   const handleExportToHtml = () => {
     if (!parsedConfig) {
@@ -296,6 +338,9 @@ const App: React.FC = () => {
     setParsedConfig(null);
     setAnalysisFindings([]);
     setError(null);
+    setChatHistory([]);
+    setChatQuery('');
+    setChatError(null);
     if(isDbReady) {
         await clearFindings();
     }
@@ -360,14 +405,29 @@ const App: React.FC = () => {
         <p className="text-md md:text-lg text-medium-text mt-2">{APP_SUBTITLE}</p>
         <button
           onClick={() => setIsSettingsModalOpen(true)}
-          className="absolute top-8 right-8 p-2 rounded-full hover:bg-light-background/50 transition-colors"
+          className="absolute top-8 right-8 p-2 rounded-full text-medium-text hover:text-dark-text hover:bg-light-background/50 transition-colors"
           aria-label="Open settings"
           title="Configure LLM provider (Gemini, OpenAI, Ollama) and other application settings."
         >
-          <img src="/public/icons/gear.svg" alt="Settings" className="h-6 w-6" />
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/>
+          </svg>
         </button>
       </header>
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+        <Section title="Core Features" className="py-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                {CORE_FEATURES_DATA.map((feature) => (
+                    <FeatureCard 
+                        key={feature.id}
+                        icon={featureIcons[feature.id] || featureIcons['parsing']}
+                        title={feature.title} 
+                        description={feature.description} 
+                    />
+                ))}
+            </div>
+        </Section>
+
         <Section title="1. Import Config & Parse" className="bg-medium-background/80">
             {renderFileUploadSection()}
              <div className="mt-6 flex flex-col md:flex-row md:justify-start gap-4">
@@ -451,27 +511,26 @@ const App: React.FC = () => {
                         </Section>
                     )}
                 </div>
-            </>
-        )}
 
-        {parsedConfig === null && analysisFindings.length === 0 && !isLoading && (
-            <Section title="System Architecture & Features">
-                <h3 className="text-xl font-semibold text-center text-dark-text mb-6">Core Features</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {CORE_FEATURES_DATA.map((feature) => (
-                        <FeatureCard 
-                            key={feature.id}
-                            icon={featureIcons[feature.id] || featureIcons['parsing']}
-                            title={feature.title} 
-                            description={feature.description} 
-                        />
-                    ))}
-                </div>
-            </Section>
+                {analysisFindings.length > 0 && (
+                    <div id="chat-agent-container" className="mt-8">
+                        <Section title="Chat with Report Agent">
+                            <ChatAgent 
+                                chatHistory={chatHistory}
+                                query={chatQuery}
+                                onQueryChange={setChatQuery}
+                                onSubmit={handleSendChatMessage}
+                                isLoading={isChatLoading}
+                                error={chatError}
+                            />
+                        </Section>
+                    </div>
+                )}
+            </>
         )}
       </main>
       <footer className="text-center py-4 text-xs text-light-text">
-        <p>&copy; {new Date().getFullYear()} NetConfig Analyzer. Created by an AI agent.</p>
+        <p>&copy; {new Date().getFullYear()} NetConfig Analyzer. Created by an AfflictedAI.</p>
       </footer>
     </div>
   );

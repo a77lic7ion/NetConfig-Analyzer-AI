@@ -1,5 +1,5 @@
 import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
-import { ParsedConfigData, AnalysisFinding, VendorName, CliCommandResponse, CliScriptResponse, LlmSettings, LlmProvider } from '../types';
+import { ParsedConfigData, AnalysisFinding, VendorName, CliCommandResponse, CliScriptResponse, LlmSettings, LlmProvider, ChatMessage } from '../types';
 import { GEMINI_TEXT_MODEL } from '../constants';
 
 const API_KEY = process.env.API_KEY;
@@ -125,4 +125,86 @@ export const analyzeConfiguration = async (config: ParsedConfigData, settings: L
   
   // Note: Schema for complex arrays is not fully supported by Gemini's responseSchema, but the prompt is structured to guide all models correctly.
   return getLlmResponse(prompt, settings);
+};
+
+export const askAboutAnalysis = async (
+  analysisReport: string,
+  chatHistory: ChatMessage[],
+  query: string,
+  settings: LlmSettings
+): Promise<{ text: string; sources?: any[] }> => {
+  const systemInstruction = `You are an expert network security assistant. Your goal is to help the user understand the provided network configuration analysis report.
+- The user will ask questions about the findings in the report.
+- Your primary context is the JSON analysis report provided below.
+- Do not just recite the findings from the report. Instead, EXPLAIN their significance. For example, if a finding says "HTTP server is enabled", explain WHY this is a security risk (e.g., clear-text credentials).
+- For any finding, concept, or term the user asks about (e.g., "What is BPDU Guard?", "Tell me more about insecure VTY lines"), you MUST use your web search capability to find detailed explanations, best practices, and reference materials.
+- Synthesize the information from the report and your web search into a comprehensive, easy-to-understand answer.
+- You MUST always cite the web pages you used as sources for your information.
+- If the question is completely unrelated to the report, answer it using your general knowledge and web search.`;
+
+  const historyFormatted = chatHistory.map(m => `${m.role}: ${m.content}`).join('\n');
+
+  const prompt = `
+${systemInstruction}
+
+ANALYSIS REPORT:
+\`\`\`json
+${analysisReport}
+\`\`\`
+
+CHAT HISTORY:
+${historyFormatted}
+
+USER'S NEW QUESTION:
+"${query}"
+
+Based on the above report and history, please answer the user's new question. Your response should be plain text, not JSON.`;
+
+  if (settings.provider === LlmProvider.GEMINI) {
+    if (!API_KEY) throw new Error("Google Gemini API Key is not configured.");
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const response = await ai.models.generateContent({
+      model: GEMINI_TEXT_MODEL,
+      contents: prompt,
+      config: {
+        tools: [{ googleSearch: {} }],
+        temperature: 0.3,
+      },
+    });
+
+    const text = response.text;
+    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
+    const sources = groundingChunks.map((chunk: any) => chunk.web).filter(Boolean);
+
+    return { text, sources };
+  } else {
+    // For OpenAI/Ollama, they don't support grounding, so we can't use web search.
+    // Adjust the prompt for them to not mention web search and to return a JSON object.
+     const nonGeminiSystemInstruction = `You are an expert network security assistant. Your primary role is to answer questions about the provided network configuration analysis report.
+      - The report is provided in JSON format below.
+      - When a user asks a question, base your answer on the information within the report.
+      - Do not just recite the findings. Explain their significance and provide context based on general network security best practices. For example, if a finding says "HTTP server is enabled", explain WHY this is a security risk.
+      - If the question cannot be answered from the report, state that the information is not available in the analysis.
+      - Do not invent details not present in the report.
+      - Respond ONLY with a JSON object containing a single key: "answer", which should be a string.`;
+      
+      const nonGeminiPrompt = `
+      ${nonGeminiSystemInstruction}
+
+      ANALYSIS REPORT:
+      \`\`\`json
+      ${analysisReport}
+      \`\`\`
+
+      CHAT HISTORY:
+      ${historyFormatted}
+
+      USER'S NEW QUESTION:
+      "${query}"
+
+      Answer the user's question in JSON format.`;
+
+    const response = await getLlmResponse(nonGeminiPrompt, settings);
+    return { text: response.answer, sources: [] };
+  }
 };
