@@ -69,8 +69,9 @@ const ConfigurationReport: React.FC<{ config: ParsedConfigData }> = ({ config })
 
     const reportContent = (
         <>
-            {/* --- RENDER LOGIC FOR DETAILED CISCO PARSED DATA --- */}
-            {config.vendor === VendorName.CISCO && config.hostname ? (
+            {/* --- RENDER LOGIC FOR DETAILED LOCALLY PARSED DATA --- */}
+            {/* This now works for any vendor that has a local parser, not just Cisco */}
+            {config.hostname ? (
                 <div className="space-y-6">
                     <Section title="Device Information">
                         <div className="flex items-center gap-4">
@@ -81,7 +82,7 @@ const ConfigurationReport: React.FC<{ config: ParsedConfigData }> = ({ config })
                             </div>
                         </div>
                         <ul className="space-y-1 text-medium-text mt-4 border-t border-light-background pt-4">
-                            <DetailItem label="iOS Version" value={config.iosVersion} />
+                            <DetailItem label="iOS/OS Version" value={config.iosVersion} />
                             <DetailItem label="Model Number" value={config.modelNumber} />
                         </ul>
                     </Section>
@@ -231,7 +232,7 @@ const ConfigurationReport: React.FC<{ config: ParsedConfigData }> = ({ config })
                     </Section>
                 </div>
             ) : (
-                // --- FALLBACK RENDER FOR GEMINI-PARSED DATA ---
+                // --- FALLBACK RENDER FOR LEGACY/GEMINI-PARSED DATA ---
                 <Section title="Configuration Summary">
                     <div className="flex items-center gap-4 mb-4">
                         <VendorLogo vendor={config.vendor} className="h-12 w-auto" />

@@ -3,7 +3,8 @@ import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recha
 import { APP_TITLE, APP_SUBTITLE, SUPPORTED_VENDORS_DATA, PIE_CHART_DATA, CORE_FEATURES_DATA, GEMINI_TEXT_MODEL } from './constants';
 import { UploadedFile, ParsedConfigData, AnalysisFinding, VendorName, PieChartData, CliCommandResponse, CliScriptResponse } from './types';
 import { parseConfiguration } from './services/parserService';
-import { analyzeConfigurations, getCliCommand, generateCliScript } from './services/geminiService';
+import { getCliCommand, generateCliScript } from './services/geminiService';
+import { runLocalAnalysis } from './services/analysisService';
 import { initDB, saveFindings, getAllFindings, clearFindings } from './services/dbService';
 import Section from './components/Section';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -114,7 +115,8 @@ const App: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const findings = await analyzeConfigurations([parsedConfig]);
+      // Use the new local analysis service instead of the Gemini service
+      const findings = await runLocalAnalysis(parsedConfig);
       setAnalysisFindings(findings);
       if (isDbReady) {
         await saveFindings(findings);
