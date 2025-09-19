@@ -164,6 +164,12 @@ export interface ParsedConfigData {
   securityFeatures?: any[];
 }
 
+
+export interface PieChartData {
+  name: string;
+  value: number;
+}
+
 export interface RemediationCommand {
   command: string;
   context: string;
@@ -180,16 +186,11 @@ export interface AnalysisFinding {
   remediationCommands?: RemediationCommand[];
 }
 
-export interface PieChartData {
-  name: string;
-  value: number;
-}
-
 export interface CliCommandResponse {
-  command: string;
-  explanation: string;
+    command: string;
+    explanation: string;
 }
 
 export interface CliScriptResponse {
-  script: string;
+    script: string;
 }

@@ -12,7 +12,9 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "@google/genai": "^1.6.0",
-    "recharts": "^3.0.0"
+    "recharts": "^3.0.0",
+    "openai": "^4.0.0",
+    "ollama": "^0.4.1"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

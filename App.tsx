@@ -3,7 +3,7 @@ import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recha
 import { APP_TITLE, APP_SUBTITLE, SUPPORTED_VENDORS_DATA, PIE_CHART_DATA, CORE_FEATURES_DATA, GEMINI_TEXT_MODEL } from './constants';
 import { UploadedFile, ParsedConfigData, AnalysisFinding, VendorName, PieChartData, CliCommandResponse, CliScriptResponse } from './types';
 import { parseConfiguration } from './services/parserService';
-import { analyzeConfigurations, getCliCommand, generateCliScript } from './services/geminiService';
+import { analyzeConfigurations, getCliCommand, generateCliScript } from './services/aiService';
 import { initDB, saveFindings, getAllFindings, clearFindings } from './services/dbService';
 import Section from './components/Section';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -14,6 +14,7 @@ import FeatureCard from './components/FeatureCard';
 import VendorLogo from './components/VendorLogo';
 import CliHelper from './components/CliHelper';
 import ScriptWriter from './components/ScriptWriter';
+import Settings from './components/Settings';
 
 declare var jspdf: any;
 declare var htmlToImage: any;
@@ -40,6 +41,15 @@ const App: React.FC = () => {
   const [scriptWriterResult, setScriptWriterResult] = useState<CliScriptResponse | null>(null);
   const [isScriptWriterLoading, setIsScriptWriterLoading] = useState<boolean>(false);
   const [scriptWriterError, setScriptWriterError] = useState<string | null>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+  const [useAiParsing, setUseAiParsing] = useState<boolean>(false);
+
+  useEffect(() => {
+    const storedUseAiParsing = localStorage.getItem('useAiParsing');
+    if (storedUseAiParsing) {
+      setUseAiParsing(storedUseAiParsing === 'true');
+    }
+  }, [isSettingsOpen]);
 
   const featureIcons: { [key: string]: React.ReactNode } = {
     ingestion: <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>,
@@ -84,7 +94,7 @@ const App: React.FC = () => {
         };
         setUploadedFile(newFile);
 
-        const newParsedConfig = await parseConfiguration(newFile);
+        const newParsedConfig = await parseConfiguration(newFile, useAiParsing);
         setParsedConfig(newParsedConfig);
       } catch (err) {
         console.error("Error parsing configuration:", err);
@@ -163,7 +173,6 @@ const App: React.FC = () => {
         setIsScriptWriterLoading(false);
     }
   }, [scriptWriterQuery, scriptWriterVendor]);
-  
 
   const handleExport = async (elementId: string, filename: string, orientation: 'p' | 'l' = 'p') => {
     const reportElement = document.getElementById(elementId);
@@ -293,11 +302,15 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen text-dark-text">
-      <header className="text-center py-8">
+      <header className="text-center py-8 relative">
         <h1 className="text-4xl md:text-5xl font-bold text-brand-primary">{APP_TITLE}</h1>
         <p className="text-md md:text-lg text-medium-text mt-2">{APP_SUBTITLE}</p>
+        <button onClick={() => setIsSettingsOpen(true)} className="absolute top-4 right-4 bg-gray-700 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-600 transition-colors">
+            Settings
+        </button>
       </header>
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+        {isSettingsOpen && <Settings onClose={() => setIsSettingsOpen(false)} />}
         <Section title="1. Import Config & Parse" className="bg-medium-background/80">
             {renderFileUploadSection()}
              <div className="mt-6 flex flex-col md:flex-row md:justify-start gap-4">
