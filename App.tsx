@@ -17,9 +17,6 @@ import CliHelper from './components/CliHelper';
 import ScriptWriter from './components/ScriptWriter';
 import SettingsModal from './components/SettingsModal';
 
-declare var jspdf: any;
-declare var htmlToImage: any;
-
 const DEFAULT_LLM_SETTINGS: LlmSettings = {
   provider: LlmProvider.GEMINI,
   openAi: {
@@ -193,76 +190,105 @@ const App: React.FC = () => {
   }, [scriptWriterQuery, scriptWriterVendor, llmSettings]);
   
 
-  const handleExport = async (elementId: string, filename: string, orientation: 'p' | 'l' = 'p') => {
-    const reportElement = document.getElementById(elementId);
-    if (!reportElement) {
-        setError(`Could not find content with ID: ${elementId}`);
-        return;
+  const handleExportToHtml = () => {
+    if (!parsedConfig) {
+      setError("No report to export.");
+      return;
     }
+
+    const reportElement = document.getElementById('full-report-container');
+    if (!reportElement) {
+      setError("Could not find report content to export.");
+      return;
+    }
+    
+    const filename = `NetConfig_Full_Report_${(parsedConfig.hostname || 'report').replace(/[^a-zA-Z0-9]/g, '_')}.html`;
     
     setIsLoading(true);
     setError(null);
 
     try {
-        const dataUrl = await htmlToImage.toPng(reportElement, { 
-            quality: 0.98,
-            backgroundColor: '#111827',
-            pixelRatio: 2,
-        });
-        
-        const { jsPDF } = jspdf;
-        const pdf = new jsPDF({
-            orientation: orientation,
-            unit: 'pt',
-            format: 'a4'
-        });
-
-        const img = new Image();
-        img.src = dataUrl;
-        await new Promise((resolve, reject) => { 
-            img.onload = resolve;
-            img.onerror = reject;
-        });
-
-        const imgWidth = img.width;
-        const imgHeight = img.height;
-        
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = pdf.internal.pageSize.getHeight();
-
-        const ratio = pdfWidth / imgWidth;
-        const scaledImgHeight = imgHeight * ratio;
-
-        let heightLeft = scaledImgHeight;
-        let position = 0;
-
-        pdf.addImage(dataUrl, 'PNG', 0, position, pdfWidth, scaledImgHeight);
-        heightLeft -= pdfHeight;
-
-        while (heightLeft > 0) {
-            position -= pdfHeight;
-            pdf.addPage();
-            pdf.addImage(dataUrl, 'PNG', 0, position, pdfWidth, scaledImgHeight);
-            heightLeft -= pdfHeight;
+      const tailwindScript = `<script src="https://cdn.tailwindcss.com"><\/script>`;
+      const tailwindConfig = `
+      <script>
+        tailwind.config = {
+          theme: {
+            extend: {
+              colors: {
+                'brand-primary': '#F97316',
+                'brand-secondary': '#FB923C',
+                'brand-accent': '#EF4444',
+                'dark-background': '#000000',
+                'medium-background': '#111827',
+                'light-background': '#1F2937',
+                'dark-text': '#F9FAFB',
+                'medium-text': '#D1D5DB',
+                'light-text': '#9CA3AF',
+              }
+            }
+          }
         }
-        
-        pdf.save(filename);
-        
-    } catch (err) {
-        console.error("Failed to export to PDF:", err);
-        setError(`Failed to export to PDF. Error: ${(err as Error).message}`);
-    } finally {
-        setIsLoading(false);
-    }
-  };
+      <\/script>`;
+      
+      const fontAndBaseStyles = `
+      <style>
+        @font-face {
+          font-family: 'Inter';
+          font-style: normal;
+          font-weight: 300 700;
+          font-display: swap;
+          src: url(https://fonts.gstatic.com/s/inter/v13/UcC73FwrK3iLTeHuS_fvQtMwCp50KnMa2ZL7W0Q.woff2) format('woff2');
+          unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+        }
+        body {
+          font-family: 'Inter', sans-serif;
+          background-color: #000000;
+          color: #F9FAFB;
+          padding: 2rem;
+        }
+        .exported-container {
+            max-width: 1280px;
+            margin: auto;
+        }
+      </style>`;
 
-  const handleExportToPdf = () => {
-    if (!parsedConfig) {
-      setError("No report to export.");
-      return;
-    };
-    const filename = `NetConfig_Full_Report_${(parsedConfig.hostname || 'report').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
-    handleExport('full-report-container', filename, 'p');
+      const reportHtml = reportElement.innerHTML;
+      
+      const fullHtml = `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>${filename.replace('.html', '')}</title>
+            ${tailwindScript}
+            ${tailwindConfig}
+            ${fontAndBaseStyles}
+        </head>
+        <body class="bg-dark-background">
+            <div class="exported-container">
+                ${reportHtml}
+            </div>
+        </body>
+        </html>
+      `;
+
+      const blob = new Blob([fullHtml], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+    } catch (err) {
+      console.error("Failed to export to HTML:", err);
+      setError(`Failed to export to HTML. Error: ${(err as Error).message}`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleClearAll = async () => {
@@ -301,7 +327,8 @@ const App: React.FC = () => {
                     Browse...
                 </label>
                 <input id="file-upload" type="file" className="hidden" onChange={handleFileChange} accept={SUPPORTED_VENDORS_DATA.find(v => v.name === currentVendor)?.extensions.join(',')} />
-                <span className="ml-3 text-light-text">{uploadedFile ? `1 file selected.` : 'No file selected.'}</span>
+                {/* FIX: Replaced template literal with single quotes to avoid parsing issues in some toolchains. */}
+                <span className="ml-3 text-light-text">{uploadedFile ? '1 file selected.' : 'No file selected.'}</span>
             </div>
         </div>
         {uploadedFile && (
@@ -354,7 +381,8 @@ const App: React.FC = () => {
                       : "Performs a fast, offline analysis using a built-in set of rules for the selected vendor."
                   }
                 >
-                    {isLoading ? 'Analyzing...' : `2. Run ${llmSettings.useLlmForAnalysis ? 'AI' : 'Local'} Analysis`}
+                    {/* FIX: Replaced template literal with string concatenation to avoid parsing issues. */}
+                    {isLoading ? 'Analyzing...' : '2. Run ' + (llmSettings.useLlmForAnalysis ? 'AI' : 'Local') + ' Analysis'}
                 </button>
                 <button 
                   onClick={handleClearAll} 
@@ -402,11 +430,11 @@ const App: React.FC = () => {
             <>
                 <div className="flex justify-end mb-4">
                     <button 
-                        onClick={handleExportToPdf} 
+                        onClick={handleExportToHtml} 
                         className="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-500" 
                         disabled={isLoading}
                     >
-                        {isLoading ? 'Exporting...' : (analysisFindings.length > 0 ? 'Export Full Report to PDF' : 'Export Report to PDF')}
+                        {isLoading ? 'Exporting...' : (analysisFindings.length > 0 ? 'Export Full Report to HTML' : 'Export Report to HTML')}
                     </button>
                 </div>
                 

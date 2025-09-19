@@ -52,8 +52,8 @@ export const CORE_FEATURES_DATA = [
     },
     {
       id: "export",
-      title: "PDF Export",
-      description: "Generates a detailed PDF of the full configuration and analysis report for documentation."
+      title: "HTML Export",
+      description: "Generates a self-contained HTML file of the full report for documentation and offline viewing."
     },
     {
       id: "cli-helper",
