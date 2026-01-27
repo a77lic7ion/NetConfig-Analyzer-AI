@@ -9,17 +9,57 @@ export enum VendorName {
 export enum LlmProvider {
   GEMINI = "gemini",
   OPENAI = "openai",
+  CLAUDE = "claude",
+  DEEPSEEK = "deepseek",
   OLLAMA = "ollama",
+  XAI = "xai",
+  CLOUDFLARE = "cloudflare",
+  MISTRAL = "mistral",
+  HUGGINGFACE = "huggingface",
+  OPENROUTER = "openrouter",
 }
 
 export interface LlmSettings {
   provider: LlmProvider;
+  gemini: {
+    apiKey: string;
+    model: string;
+  };
   openAi: {
+    apiKey: string;
+    model: string;
+  };
+  anthropic: {
+    apiKey: string;
+    model: string;
+  };
+  deepseek: {
     apiKey: string;
     model: string;
   };
   ollama: {
     baseUrl: string;
+    model: string;
+  };
+  xAi: {
+    apiKey: string;
+    model: string;
+  };
+  cloudflare: {
+    accountId: string;
+    apiToken: string;
+    model: string;
+  };
+  mistral: {
+    apiKey: string;
+    model: string;
+  };
+  huggingface: {
+    apiKey: string;
+    model: string;
+  };
+  openRouter: {
+    apiKey: string;
     model: string;
   };
   useLlmForAnalysis: boolean;
