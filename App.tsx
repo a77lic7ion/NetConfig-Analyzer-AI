@@ -3,7 +3,7 @@ import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recha
 import { APP_TITLE, APP_SUBTITLE, SUPPORTED_VENDORS_DATA, PIE_CHART_DATA, CORE_FEATURES_DATA, GEMINI_TEXT_MODEL } from './constants';
 import { UploadedFile, ParsedConfigData, AnalysisFinding, VendorName, PieChartData, CliCommandResponse, CliScriptResponse, LlmSettings, LlmProvider, ChatMessage } from './types';
 import { parseConfiguration } from './services/parserService';
-import { getCliCommand, generateCliScript, askAboutAnalysis } from './services/geminiService';
+import { getCliCommand, generateCliScript, askAboutAnalysis } from './services/llmService';
 import { runAnalysis } from './services/analysisService';
 import { initDB, saveFindings, getAllFindings, clearFindings } from './services/dbService';
 import Section from './components/Section';
@@ -19,14 +19,47 @@ import SettingsModal from './components/SettingsModal';
 import ChatAgent from './components/ChatAgent';
 
 const DEFAULT_LLM_SETTINGS: LlmSettings = {
-  provider: LlmProvider.GEMINI,
+  provider: LlmProvider.OLLAMA,
+  gemini: {
+    apiKey: '',
+    model: 'gemini-2.0-flash',
+  },
   openAi: {
     apiKey: '',
     model: 'gpt-4-turbo',
   },
+  anthropic: {
+    apiKey: '',
+    model: 'claude-3-5-sonnet-20241022',
+  },
+  deepseek: {
+    apiKey: '',
+    model: 'deepseek-chat',
+  },
   ollama: {
     baseUrl: 'http://localhost:11434',
     model: 'llama3',
+  },
+  xAi: {
+    apiKey: '',
+    model: 'grok-2-1212',
+  },
+  cloudflare: {
+    accountId: '',
+    apiToken: '',
+    model: '@cf/meta/llama-3-8b-instruct',
+  },
+  mistral: {
+    apiKey: '',
+    model: 'mistral-tiny',
+  },
+  huggingface: {
+    apiKey: '',
+    model: 'meta-llama/Llama-3.1-8B-Instruct',
+  },
+  openRouter: {
+    apiKey: '',
+    model: 'openai/gpt-4o-mini',
   },
   useLlmForAnalysis: false,
 };

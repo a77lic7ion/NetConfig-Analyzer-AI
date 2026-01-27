@@ -3,7 +3,7 @@ import { VendorName, SupportedVendor, PieChartData } from './types';
 export const APP_TITLE = "NetConfig Analyzer";
 export const APP_SUBTITLE = "Automated analysis and conflict detection for diverse network device configurations";
 
-export const GEMINI_TEXT_MODEL = "gemini-2.5-flash";
+export const GEMINI_TEXT_MODEL = "gemini-2.0-flash";
 
 export const SUPPORTED_VENDORS_DATA: SupportedVendor[] = [
   { name: VendorName.CISCO, extensions: [".txt", ".cfg", ".log"], os: ["IOS", "NX-OS"] },

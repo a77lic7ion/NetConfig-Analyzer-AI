@@ -3,7 +3,7 @@ import { analyzeCiscoConfig } from './ciscoAnalysis';
 import { analyzeHuaweiConfig } from './huaweiAnalysis';
 import { analyzeJuniperConfig } from './juniperAnalysis';
 import { analyzeH3cConfig } from './h3cAnalysis';
-import { analyzeConfiguration as analyzeWithLlm } from './geminiService';
+import { analyzeConfiguration as analyzeWithLlm } from './llmService';
 
 /**
  * Runs a local, rule-based analysis on the configuration.
