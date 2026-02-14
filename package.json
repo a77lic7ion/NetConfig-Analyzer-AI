@@ -9,9 +9,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/android": "^8.1.0",
+    "@capacitor/cli": "^8.1.0",
+    "@capacitor/core": "^8.1.0",
+    "@google/genai": "^1.6.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "@google/genai": "^1.6.0",
     "recharts": "^3.0.0"
   },
   "devDependencies": {
